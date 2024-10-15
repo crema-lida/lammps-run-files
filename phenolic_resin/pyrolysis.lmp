@@ -1,0 +1,46 @@
+# Pyrolysis of phenolic resin
+
+# Initialization
+units real
+boundary p p f
+atom_style full
+read_data virgin.data nocoeff
+
+# ReaxFF potential
+pair_style reaxff NULL
+pair_coeff * * ffield.reax.cho C H O
+fix qeq all qeq/reaxff 1 0.0 10.0 1e-6 reaxff
+
+# Boundary conditions
+change_box all z delta 0 250
+fix zwall all wall/reflect zlo EDGE zhi EDGE
+
+dump traj all atom 200 eql.lammpstrj
+thermo_style custom step temp press density etotal spcpu cpuremain
+thermo 1000
+
+timestep 0.25
+
+# Equilibrium
+# fix ensemble all npt temp 300 300 100 x 1 1 1000 y 1 1 1000 couple xy
+# run 40000  # 10 ps
+# write_data virgin.data
+
+# ReaxFF output
+fix species all reaxff/species 20 20 400 species.out
+fix bonds all reaxff/bonds 200 bonds.out
+neighbor 2.0 bin
+neigh_modify every 1 delay 0 check yes
+
+undump traj
+dump traj all atom 200 pyrolysis.lammpstrj
+
+# Heat up the simulation box
+# unfix ensemble
+fix ensemble all nvt temp 300 3000 100
+run 40000  # 10 ps
+
+# Production run
+fix ensemble all nvt temp 3000 3000 100
+run 2000000  # 500 ps
+write_data char.data

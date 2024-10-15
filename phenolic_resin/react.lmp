@@ -1,0 +1,56 @@
+# Construction of a highly crosslinked phenolic resin
+
+units real
+boundary p p f
+atom_style full
+
+# OPLS potential
+pair_style lj/cut/coul/long 11.0
+pair_modify mix geometric
+special_bonds lj/coul 0.0 0.0 0.5
+kspace_style ewald 1.0e-4
+kspace_modify slab 3.0
+bond_style harmonic
+angle_style harmonic
+dihedral_style opls
+improper_style harmonic
+read_data rxn_pre.data &
+    extra/bond/per/atom 5 &
+    extra/angle/per/atom 10 &
+    extra/dihedral/per/atom 15 &
+    extra/improper/per/atom 25 &
+    extra/special/per/atom 25
+include system.in.settings
+
+fix zwall all wall/reflect zlo EDGE zhi EDGE
+
+minimize 1e-6 1e-8 1000 10000
+reset_timestep 0
+
+variable T equal 298.15
+velocity all create $T 20240709 rot yes mom yes dist gaussian
+
+molecule rxn1_pre rxn1_pre.molecule_template
+molecule rxn1_post rxn1_post.molecule_template
+molecule rxn2_pre rxn2_pre.molecule_template
+molecule rxn2_post rxn2_post.molecule_template
+molecule rxn3_pre rxn3_pre.molecule_template
+molecule rxn3_post rxn3_post.molecule_template
+
+fix rxns all bond/react stabilization yes statted_grp 0.03 &
+    react rxn1 all 1 0 3.05 rxn1_pre rxn1_post rxn1.map modify_create overlap 1.3 stabilize_steps 100 &
+    react rxn2 all 1 0 3.05 rxn2_pre rxn2_post rxn2.map modify_create overlap 1.3 stabilize_steps 100 &
+    react rxn3 all 1 0 3.05 rxn3_pre rxn3_post rxn3.map modify_create overlap 1.3 stabilize_steps 100
+
+fix stat_react bond_react_MASTER_group temp/rescale 1 $T $T 1 1
+fix stat_non_react statted_grp_REACT npt temp $T $T 100 x 1 1 1000 y 1 1 1000 couple xy
+
+thermo_style custom step temp press density etotal spcpu cpuremain f_rxns[1]
+thermo 1000
+dump traj all atom 100 react.lammpstrj
+compute bond all property/local btype batom1 batom2
+dump bond all local 100 react.bond index c_bond[1] c_bond[2] c_bond[3]
+
+timestep 1
+run 400000  # 400 ps
+write_data resin.data nofix
